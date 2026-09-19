@@ -41,10 +41,6 @@ MLOps-PrediksiRisikoHujan/
 ├── models/
 ├── notebooks/
 ├── src/
-│   ├── data/
-│   ├── features/
-│   ├── models/
-│   └── visualization/
 ├── .gitignore
 ├── LICENSE
 ├── README.md
@@ -62,7 +58,7 @@ MLOps-PrediksiRisikoHujan/
 | `data/external/` | Data pendukung dari sumber luar |
 | `models/` | Menyimpan model machine learning hasil training |
 | `notebooks/` | Notebook untuk eksplorasi (EDA) dan eksperimen |
-| `src/` | Source code utama (data, features, models, visualization) |
+| `src/` | Source code utama |
 | `requirements.txt` | Daftar dependency Python yang digunakan |
 | `.gitignore` | Menentukan file yang tidak perlu disimpan dalam Git |
 | `LICENSE` | Lisensi proyek (MIT) |
