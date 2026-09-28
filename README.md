@@ -102,3 +102,59 @@ git checkout -b feat/initial-eda
 git push -u origin feat/initial-eda
 # buka Pull Request di GitHub, lalu merge ke main
 ```
+
+## LK-04: Data Ingestion Dinamis & Otomasi Prapemrosesan
+
+### Cara Menjalankan
+```bash
+python -m pip install -r requirements.txt
+
+# 1. Ambil data terbaru dari BMKG API
+python src/data/ingest_data.py
+
+# 2. Bersihkan semua data mentah
+python src/data/preprocess.py
+```
+
+### Penjelasan Skrip
+| File | Fungsi |
+|---|---|
+| `src/data/ingest_data.py` | Mengambil prakiraan cuaca tiap kelurahan (kode ADM4) dan menyimpannya ke `data/raw/bmkg_<adm4>_<timestamp>.json`. Data lama tidak ditimpa. Jika koneksi gagal, skrip mencetak pesan dan lanjut ke lokasi berikutnya. |
+| `src/data/preprocess.py` | Membaca semua file di `data/raw/`, membersihkan (tipe data, nilai tidak valid, duplikat), resampling 3 jam ke 1 jam, feature engineering, dan menyimpan `data/processed/weather_processed.csv`. |
+
+### Pengambilan Berkala
+- Simulasi lokal: ubah `JUMLAH_PUTARAN` dan `JEDA_DETIK` di `ingest_data.py`.
+- Otomatis: workflow `.github/workflows/ingest.yml` menjalankan kedua skrip
+  tiap 3 jam (sesuai rilis BMKG) dan meng-commit data baru.
+
+### Catatan
+Lokasi utama tetap Kel. Mojolangu (`35.73.05.1009`, LK-03). Lokasi lain
+ditambahkan untuk memenuhi jumlah data (>= 500 baris).
+
+## LK-04: Data Ingestion Dinamis & Otomasi Prapemrosesan
+
+### Cara Menjalankan
+```bash
+python -m pip install -r requirements.txt
+
+# 1. Ambil data terbaru dari BMKG API
+python src/data/ingest_data.py
+
+# 2. Bersihkan semua data mentah
+python src/data/preprocess.py
+```
+
+### Penjelasan Skrip
+| File | Fungsi |
+|---|---|
+| `src/data/ingest_data.py` | Mengambil prakiraan cuaca tiap kelurahan (kode ADM4) dan menyimpannya ke `data/raw/bmkg_<adm4>_<timestamp>.json`. Data lama tidak ditimpa. Jika koneksi gagal, skrip mencetak pesan dan lanjut ke lokasi berikutnya. |
+| `src/data/preprocess.py` | Membaca semua file di `data/raw/`, membersihkan (tipe data, nilai tidak valid, duplikat), resampling 3 jam ke 1 jam, feature engineering, dan menyimpan `data/processed/weather_processed.csv`. |
+
+### Pengambilan Berkala
+- Simulasi lokal: ubah `JUMLAH_PUTARAN` dan `JEDA_DETIK` di `ingest_data.py`.
+- Otomatis: workflow `.github/workflows/ingest.yml` menjalankan kedua skrip
+  tiap 3 jam (sesuai rilis BMKG) dan meng-commit data baru.
+
+### Catatan
+Lokasi utama tetap Kel. Mojolangu (`35.73.05.1009`, LK-03). Lokasi lain
+ditambahkan untuk memenuhi jumlah data (>= 500 baris).
