@@ -17,9 +17,5 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python src/data/ingest_data.py
       - run: python src/data/preprocess.py
-      - name: Commit data baru
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add data/raw data/processed
-          git diff --cached --quiet || (git commit -m "data: ingest otomatis" && git push)
+      - name: Info
+        run: echo "Data dikelola DVC, tidak di-commit ke Git. Versioning dilakukan dengan dvc add + dvc push."

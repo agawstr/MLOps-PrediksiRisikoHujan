@@ -16,3 +16,4 @@ mlflow
 # Notebook
 jupyter
 ipykernel
+dvc
