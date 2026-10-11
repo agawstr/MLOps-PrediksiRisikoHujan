@@ -78,6 +78,7 @@ Proyek dikembangkan menggunakan GitHub Codespaces dengan environment Python yang
 - matplotlib
 - seaborn
 - mlflow
+- dvc
 
 ## Cara Menjalankan di GitHub Codespaces
 
@@ -124,37 +125,59 @@ python src/data/preprocess.py
 
 ### Pengambilan Berkala
 - Simulasi lokal: ubah `JUMLAH_PUTARAN` dan `JEDA_DETIK` di `ingest_data.py`.
-- Otomatis: workflow `.github/workflows/ingest.yml` menjalankan kedua skrip
-  tiap 3 jam (sesuai rilis BMKG) dan meng-commit data baru.
+- Otomatis: workflow `.github/workflows/ingest.yml` menjalankan kedua skrip setiap hari (cron `0 0 * * *`). Sejak LK-05, data tidak lagi di-commit ke Git, melainkan di-versioning dengan DVC (lihat section LK-05).
 
 ### Catatan
 Lokasi utama tetap Kel. Mojolangu (`35.73.05.1009`, LK-03). Lokasi lain
 ditambahkan untuk memenuhi jumlah data (>= 500 baris).
 
-## LK-04: Data Ingestion Dinamis & Otomasi Prapemrosesan
+## LK-05: Data Versioning dengan DVC
 
-### Cara Menjalankan
-```bash
-python -m pip install -r requirements.txt
+### Mengapa data perlu di-versioning?
+Model ML dibentuk dari kode, parameter, dan data. Git hanya cocok untuk
+file teks kecil dan tidak dirancang untuk file besar yang terus berubah,
+sedangkan data cuaca BMKG di proyek ini bertambah setiap ingestion
+dijalankan. Tanpa versioning, kita tidak tahu data mana yang dipakai untuk
+melatih suatu model, sehingga hasil training tidak bisa direproduksi,
+bug pada prediksi historis sulit ditelusuri, dan perubahan data tidak bisa
+diaudit. Dengan DVC, setiap commit Git menunjuk ke versi dataset tertentu
+lewat file pointer `data/raw.dvc` (berisi hash md5), sehingga eksperimen
+dapat diulang dengan data yang sama persis, performa model dapat
+dibandingkan antar versi data, dan kita bisa rollback bila data baru
+menurunkan performa. Repositori Git tetap ringan karena data asli
+disimpan di remote storage.
 
-# 1. Ambil data terbaru dari BMKG API
-python src/data/ingest_data.py
+### Data lineage (silsilah data)
+BMKG Web API → `src/data/ingest_data.py` → `data/raw/*.json`
+→ `src/data/preprocess.py` → `data/processed/weather_processed.csv`
 
-# 2. Bersihkan semua data mentah
-python src/data/preprocess.py
-```
+Setiap versi data terikat ke satu commit Git dan tag (`data-v1`,
+`data-v2`), sehingga asal-usul dan perubahan data dapat ditelusuri.
 
-### Penjelasan Skrip
-| File | Fungsi |
-|---|---|
-| `src/data/ingest_data.py` | Mengambil prakiraan cuaca tiap kelurahan (kode ADM4) dan menyimpannya ke `data/raw/bmkg_<adm4>_<timestamp>.json`. Data lama tidak ditimpa. Jika koneksi gagal, skrip mencetak pesan dan lanjut ke lokasi berikutnya. |
-| `src/data/preprocess.py` | Membaca semua file di `data/raw/`, membersihkan (tipe data, nilai tidak valid, duplikat), resampling 3 jam ke 1 jam, feature engineering, dan menyimpan `data/processed/weather_processed.csv`. |
+### Alur penambahan versi data
+1. Ambil data baru dan bersihkan:
+   `python src/data/ingest_data.py && python src/data/preprocess.py`
+2. Catat versi baru: `dvc add data/raw data/processed`
+3. Commit pointer: `git add data/raw.dvc data/processed.dvc data/.gitignore`
+   lalu `git commit -m "data: <keterangan>"` dan `git tag data-vN`
+4. Kirim data ke remote: `dvc push`
 
-### Pengambilan Berkala
-- Simulasi lokal: ubah `JUMLAH_PUTARAN` dan `JEDA_DETIK` di `ingest_data.py`.
-- Otomatis: workflow `.github/workflows/ingest.yml` menjalankan kedua skrip
-  tiap 3 jam (sesuai rilis BMKG) dan meng-commit data baru.
+### Membandingkan dan memulihkan versi
+- Bandingkan versi: `dvc diff data-v1 data-v2`
+- Riwayat versi: `git log --oneline --decorate -- data/raw.dvc`
+- Pulihkan versi: `git checkout data-v1 && dvc pull`
+- Ambil data di mesin lain: `git clone <repo> && dvc pull`
+
+### Ringkasan versi
+| Versi | Tag | Commit | File raw | Ukuran | md5 (8 awal) |
+|---|---|---|---|---|---|
+| v1 | data-v1 | c5abe44 | 480 | 8,9 MB | 5b2e2e42 |
+| v2 | data-v2 | ee3e615 | 510 | 9,4 MB | f6a64621 |
+
+Transisi v1 ke v2: 30 file raw ditambahkan dan `weather_processed.csv`
+berubah (`dvc diff data-v1 data-v2`).
 
 ### Catatan
-Lokasi utama tetap Kel. Mojolangu (`35.73.05.1009`, LK-03). Lokasi lain
-ditambahkan untuk memenuhi jumlah data (>= 500 baris).
+- Remote storage memakai folder lokal (`../dvc-storage`) untuk demo. Untuk produksi dapat diganti S3/GCS/MinIO dengan `dvc remote modify`.
+- Workflow `ingest.yml` tidak lagi meng-commit data ke Git; versioning data dilakukan dengan DVC.
+- Karena remote berupa folder lokal, perintah `dvc pull` dari mesin lain baru bisa dipakai setelah remote diganti ke storage yang dapat diakses bersama (S3/GCS/MinIO).
