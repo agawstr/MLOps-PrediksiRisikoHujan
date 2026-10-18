@@ -1,19 +1,21 @@
 # Data & analysis
-pandas
 numpy
 requests
+pandas==3.0.6
 
 # Visualization
 matplotlib
 seaborn
 
 # ML
-scikit-learn
+scikit-learn==1.9.1
 
 # Experiment tracking
-mlflow
+mlflow==3.16.1
 
 # Notebook
 jupyter
 ipykernel
+
+# Data versioning
 dvc
