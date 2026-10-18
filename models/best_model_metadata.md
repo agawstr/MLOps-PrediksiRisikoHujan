@@ -52,6 +52,7 @@ Model yang lebih dalam (max_depth 10 dan None) overfitting (train_f1 0.906 dan 0
 | Jumlah baris | 10.836 (train 7.585, test 3.251) |
 | Git branch | feat/lk06-mlflow |
 | Git commit (tercatat di run) | 9793307 |
+| Git commit kode final (train.py) | ead98e4 |
 
 ## Cara reproduksi
 1. `git checkout feat/lk06-mlflow`
