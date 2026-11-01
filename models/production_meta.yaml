@@ -1,0 +1,17 @@
+model_name: rain-risk-classifier
+version: 1
+alias: production
+mlflow_run_id: 7a9ff9fafd7f4a00bf9c024e2e7726c8
+run_name: rf_n100_d5_leaf3
+params:
+  n_estimators: '100'
+  max_depth: '5'
+  min_samples_leaf: '3'
+metrics:
+  test_f1: 0.5671
+  test_recall: 0.706
+  test_precision: 0.4738
+  test_pr_auc: 0.5133
+data_path: data/processed/weather_processed.csv
+data_dvc_md5: c010bd78c012e47ba41a93c303eefd32.dir
+git_commit: '9793307'
