@@ -215,5 +215,5 @@ Transisi status v1: None -> Staging -> Production (stage API MLflow 3.16.1 yang 
 6. `python src/inference_test.py` : uji pemuatan model dari registry dan prediksi data baru
 
 ### Catatan
-- Data pelatihan: snapshot prakiraan BMKG 28 Sep - 13 Okt 2026 (10.896 baris, 30 kelurahan). Pembaruan data = ingest ulang -> preprocess -> `dvc add` -> retrain (versi model baru).
+- Data pelatihan: snapshot data-v2 (10.836 baris setelah dropna, 30 kelurahan). Pembaruan data = ingest ulang -> preprocess -> `dvc add` -> retrain (versi model baru).
 - Registry memakai SQLite lokal (`mlflow.db`, tidak di-commit); salinan model tersedia di `models/production` via DVC.
