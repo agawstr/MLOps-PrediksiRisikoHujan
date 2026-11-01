@@ -182,12 +182,38 @@ berubah (`dvc diff data-v1 data-v2`).
 - Workflow `ingest.yml` tidak lagi meng-commit data ke Git; versioning data dilakukan dengan DVC.
 - Karena remote berupa folder lokal, perintah `dvc pull` dari mesin lain baru bisa dipakai setelah remote diganti ke storage yang dapat diakses bersama (S3/GCS/MinIO).
 
-## Model Aktif untuk Inferensi (LK-07)
+## LK-06: Eksperimen dan Pelacakan Metrik dengan MLflow
+
+- `python src/train.py` melatih RandomForest dengan 4 konfigurasi hyperparameter (split berbasis waktu 70/30, `class_weight=balanced`) dan mencatat parameter, metrik train/test, feature importance, serta model ke MLflow (`sqlite:///mlflow.db`, experiment `prediksi-risiko-hujan`).
+- Setiap run mencatat `git_commit` dan `data_dvc_md5` agar hasilnya dapat direproduksi.
+- Lihat hasil: `mlflow ui --backend-store-uri sqlite:///mlflow.db`
+- `python src/train.py --register` mendaftarkan run dengan test_f1 tertinggi ke Model Registry sebagai `rain-risk-classifier`.
+
+## LK-07: Model Registry, Versioning, dan Kesiapan Inferensi
+
+### Model aktif untuk inferensi
 - Model: `rain-risk-classifier` **Version 1** (alias `production`), run `rf_n100_d5_leaf3`
-- Alasan: test_f1 tertinggi (0.567 vs 0.536 pada v2), recall 0.706 vs 0.617, dan gap train-test terkecil (0.125 vs 0.213, v2 lebih overfit)
+- Alasan: test_f1 tertinggi (0.567 vs 0.536), recall tertinggi (0.706 vs 0.617, selaras prioritas recall proyek), dan gap train-test terkecil (0.125 vs 0.213, v2 lebih overfit)
 - Data: `data/processed` (DVC md5 `c010bd78c012e47ba41a93c303eefd32.dir`), commit kode `9793307`
-- Data pelatihan: snapshot prakiraan BMKG 28 Sep - 13 Okt 2026 (10.896 baris, 30 kelurahan). Pembaruan data = ingest ulang -> preprocess -> `dvc add` -> retrain (versi model baru).
 - Muat model: `mlflow.pyfunc.load_model("models:/rain-risk-classifier@production")`
 - Metadata: `models/production.dvc`, `models/production_meta.yaml`
-- Alur: `python src/train.py` -> `python src/train_v2.py` -> `python src/promote_model.py staging|production` -> `python src/export_production.py` -> `python src/inference_test.py`
-- Catatan: registry memakai SQLite lokal (`mlflow.db`, tidak di-commit); salinan model tersedia di `models/production` via DVC.
+
+### Perbandingan versi
+| Versi | n_estimators / max_depth / min_samples_leaf | test_f1 | recall | precision | PR-AUC | gap F1 | Status |
+|---|---|---|---|---|---|---|---|
+| v1 | 100 / 5 / 3 | 0.567 | 0.706 | 0.474 | 0.513 | 0.125 | Production |
+| v2 | 150 / 6 / 3 | 0.536 | 0.617 | 0.474 | 0.506 | 0.213 | None |
+
+Transisi status v1: None -> Staging -> Production (stage API MLflow 3.16.1 yang berstatus deprecated, ditambah alias `staging`/`production` dan tag `stage`).
+
+### Alur menjalankan
+1. `python src/train.py --register` : melatih 4 run dan mendaftarkan terbaik sebagai v1
+2. `python src/registry_describe.py 1 "<catatan>"` : deskripsi dan tag metadata
+3. `python src/train_v2.py` lalu `python src/registry_describe.py 2 "<catatan>"` : kandidat v2
+4. `python src/promote_model.py compare`, lalu `staging`, lalu `production`
+5. `python src/export_production.py` lalu `dvc add models/production` : metadata lineage ke DVC
+6. `python src/inference_test.py` : uji pemuatan model dari registry dan prediksi data baru
+
+### Catatan
+- Data pelatihan: snapshot prakiraan BMKG 28 Sep - 13 Okt 2026 (10.896 baris, 30 kelurahan). Pembaruan data = ingest ulang -> preprocess -> `dvc add` -> retrain (versi model baru).
+- Registry memakai SQLite lokal (`mlflow.db`, tidak di-commit); salinan model tersedia di `models/production` via DVC.
