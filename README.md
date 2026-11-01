@@ -181,3 +181,13 @@ berubah (`dvc diff data-v1 data-v2`).
 - Remote storage memakai folder lokal (`../dvc-storage`) untuk demo. Untuk produksi dapat diganti S3/GCS/MinIO dengan `dvc remote modify`.
 - Workflow `ingest.yml` tidak lagi meng-commit data ke Git; versioning data dilakukan dengan DVC.
 - Karena remote berupa folder lokal, perintah `dvc pull` dari mesin lain baru bisa dipakai setelah remote diganti ke storage yang dapat diakses bersama (S3/GCS/MinIO).
+
+## Model Aktif untuk Inferensi (LK-07)
+- Model: `rain-risk-classifier` **Version 1** (alias `production`), run `rf_n100_d5_leaf3`
+- Alasan: test_f1 tertinggi (0.567 vs 0.536 pada v2), recall 0.706 vs 0.617, dan gap train-test terkecil (0.125 vs 0.213, v2 lebih overfit)
+- Data: `data/processed` (DVC md5 `c010bd78c012e47ba41a93c303eefd32.dir`), commit kode `9793307`
+- Data pelatihan: snapshot prakiraan BMKG 28 Sep - 13 Okt 2026 (10.896 baris, 30 kelurahan). Pembaruan data = ingest ulang -> preprocess -> `dvc add` -> retrain (versi model baru).
+- Muat model: `mlflow.pyfunc.load_model("models:/rain-risk-classifier@production")`
+- Metadata: `models/production.dvc`, `models/production_meta.yaml`
+- Alur: `python src/train.py` -> `python src/train_v2.py` -> `python src/promote_model.py staging|production` -> `python src/export_production.py` -> `python src/inference_test.py`
+- Catatan: registry memakai SQLite lokal (`mlflow.db`, tidak di-commit); salinan model tersedia di `models/production` via DVC.
