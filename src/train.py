@@ -11,6 +11,7 @@ Cara pakai:
   mlflow ui --backend-store-uri sqlite:///mlflow.db
 """
 import argparse
+import os
 import subprocess
 from pathlib import Path
 
@@ -39,7 +40,7 @@ TEST_SIZE = 0.3  # 30% data terbaru (~5 hari) agar mencakup hari hujan dan kerin
 SEED = 42
 EXPERIMENT_NAME = "prediksi-risiko-hujan"
 MODEL_NAME = "rain-risk-classifier"
-TRACKING_URI = "sqlite:///mlflow.db"
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
 
 # Variasi hyperparameter (minimal 3 run).
 CONFIGS = [
@@ -125,13 +126,14 @@ def run_experiment(params: dict, data: tuple, data_info: dict) -> str:
         importance = dict(zip(FEATURES, model.feature_importances_.round(4).tolist()))
         mlflow.log_dict(importance, "feature_importance.json")
         signature = infer_signature(X_train, model.predict(X_train))
-        mlflow.sklearn.log_model(
+        info = mlflow.sklearn.log_model(
             model,
             name="model",
             signature=signature,
             input_example=X_train.head(3),
             skops_trusted_types=["sklearn.tree._tree.Tree"],  # model dilatih sendiri
         )
+        mlflow.set_tag("model_uri", info.model_uri)
 
         print(
             f"{run_name}: test_f1={metrics['test_f1']:.3f} test_recall={metrics['test_recall']:.3f} "
