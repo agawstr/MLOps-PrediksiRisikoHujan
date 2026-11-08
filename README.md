@@ -217,3 +217,21 @@ Transisi status v1: None -> Staging -> Production (stage API MLflow 3.16.1 yang 
 ### Catatan
 - Data pelatihan: snapshot data-v2 (10.836 baris setelah dropna, 30 kelurahan). Pembaruan data = ingest ulang -> preprocess -> `dvc add` -> retrain (versi model baru).
 - Registry memakai SQLite lokal (`mlflow.db`, tidak di-commit); salinan model tersedia di `models/production` via DVC.
+
+## LK-08: Otomatisasi End-to-End Pipeline (CI/CD/CT)
+
+Workflow `.github/workflows/mlops-automation.yaml` berjalan otomatis pada **push ke `main`** dan **pull request ke `main`**:
+
+| Job | Tahap | Isi |
+|---|---|---|
+| `testing` | 1. Automated Testing | `pytest` (data sintetis) pada `tests/` |
+| `training` | 2. Automated Training | `dvc pull data/processed.dvc` dari remote DagsHub, lalu `python src/train.py` (5 konfigurasi, dicatat ke MLflow) |
+| `registry` | 3-4. Validasi dan Registry | `src/evaluate_and_promote.py`: model terbaik dibandingkan dengan ambang di `config/thresholds.yaml`; hanya jika lolos dan pada push ke `main`, didaftarkan ke MLflow Model Registry berstatus **Staging** |
+
+**Ambang** (`config/thresholds.yaml`, ditetapkan dari baseline LK-06 karena LK-01 menunda angka sampai baseline ada): `test_recall >= 0.60`, `test_f1 >= 0.50`, `gap F1 (train-test) <= 0.20`, dan tidak boleh turun lebih dari 0.01 F1 dari model Production (bila ada).
+
+**Secrets** (GitHub Settings, tanpa nilai di kode): `DAGSHUB_USER`, `DAGSHUB_TOKEN`, `MLFLOW_TRACKING_URI`.
+
+**Layanan eksternal:** remote DVC dan MLflow tracking/registry memakai DagsHub, karena runner GitHub tidak dapat mengakses storage lokal Codespace dan registry di dalam runner hilang setelah job selesai.
+
+**Bukti:** run yang lolos sampai Staging (push ke `main`) dan run yang sengaja gagal pada PR dengan ambang F1 0.90 (job `registry` menolak model).
