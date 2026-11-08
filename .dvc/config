@@ -1,4 +1,6 @@
 [core]
-    remote = localstore
+    remote = origin
 ['remote "localstore"']
     url = ../../dvc-storage
+['remote "origin"']
+    url = https://dagshub.com/agawstr/MLOps-PrediksiRisikoHujan.dvc

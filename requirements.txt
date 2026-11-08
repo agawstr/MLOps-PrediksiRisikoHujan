@@ -19,3 +19,4 @@ ipykernel
 
 # Data versioning
 dvc
+pytest==9.2.0

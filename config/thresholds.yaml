@@ -1,0 +1,6 @@
+# Ambang kelulusan model (LK-8). LK-01 menunda angka sampai baseline ada,
+# jadi ditetapkan dari baseline LK-06 (F1 baseline 0,433; model terbaik F1 0,567 / recall 0,706).
+min_test_recall: 0.60   # prioritas LK-01: jangan lewatkan hujan
+min_test_f1: 0.50       # di atas baseline F1
+max_gap_f1: 0.20        # batas overfitting (train_f1 - test_f1)
+max_regression: 0.01    # boleh turun maksimal 0,01 F1 dari model Production
