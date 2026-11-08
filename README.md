@@ -184,7 +184,7 @@ berubah (`dvc diff data-v1 data-v2`).
 
 ## LK-06: Eksperimen dan Pelacakan Metrik dengan MLflow
 
-- `python src/train.py` melatih RandomForest dengan 4 konfigurasi hyperparameter (split berbasis waktu 70/30, `class_weight=balanced`) dan mencatat parameter, metrik train/test, feature importance, serta model ke MLflow (`sqlite:///mlflow.db`, experiment `prediksi-risiko-hujan`).
+- `python src/train.py` melatih RandomForest dengan 5 konfigurasi hyperparameter (4 dari LK-06, 1 ditambahkan pada LK-08, split berbasis waktu 70/30, `class_weight=balanced`) dan mencatat parameter, metrik train/test, feature importance, serta model ke MLflow (`sqlite:///mlflow.db`, experiment `prediksi-risiko-hujan`).
 - Setiap run mencatat `git_commit` dan `data_dvc_md5` agar hasilnya dapat direproduksi.
 - Lihat hasil: `mlflow ui --backend-store-uri sqlite:///mlflow.db`
 - `python src/train.py --register` mendaftarkan run dengan test_f1 tertinggi ke Model Registry sebagai `rain-risk-classifier`.
