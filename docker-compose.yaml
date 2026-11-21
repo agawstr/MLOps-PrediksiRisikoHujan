@@ -1,0 +1,54 @@
+services:
+  mlflow-server:
+    image: ghcr.io/mlflow/mlflow:v3.16.1
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --workers 1
+      --backend-store-uri sqlite:////mlflow-data/mlflow.db
+      --artifacts-destination /mlflow-data/artifacts
+      --serve-artifacts
+      --allowed-hosts "mlflow-server:5000,localhost:5000,127.0.0.1:5000"
+    volumes:
+      - mlflow-data:/mlflow-data
+    networks:
+      - ml-net
+    ports:
+      - "5000:5000"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  api-service:
+    build: .
+    depends_on:
+      mlflow-server:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow-server:5000
+      MODEL_URI: models:/rain-risk-classifier@staging
+    networks:
+      - ml-net
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    restart: unless-stopped
+
+networks:
+  ml-net:
+    driver: bridge
+
+volumes:
+  mlflow-data:

@@ -1,0 +1,11 @@
+.git
+.devcontainer
+mlruns
+mlartifacts
+mlflow.db
+data
+notebooks
+models
+tests
+__pycache__
+*.pyc

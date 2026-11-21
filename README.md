@@ -235,3 +235,54 @@ Workflow `.github/workflows/mlops-automation.yaml` berjalan otomatis pada **push
 **Layanan eksternal:** remote DVC dan MLflow tracking/registry memakai DagsHub, karena runner GitHub tidak dapat mengakses storage lokal Codespace dan registry di dalam runner hilang setelah job selesai.
 
 **Bukti:** run yang lolos sampai Staging (push ke `main`) dan run yang sengaja gagal pada PR dengan ambang F1 0.90 (job `registry` menolak model).
+
+## LK-09: Orkestrasi dengan Docker Compose
+
+Sistem terdiri dari dua layanan dalam satu network (`ml-net`):
+
+| Layanan | Fungsi | Port |
+|---|---|---|
+| `mlflow-server` | Tracking server + Model Registry (SQLite di volume `mlflow-data`) | 5000 |
+| `api-service` | API inferensi FastAPI, memuat model `rain-risk-classifier@staging` | 8000 |
+
+### Prasyarat
+- Docker dan Docker Compose v2
+- Dependensi training terpasang (`pip install -r requirements.txt`)
+
+### Menjalankan sistem
+
+```bash
+# 1. Jalankan MLflow server
+docker compose up -d mlflow-server
+
+# 2. Latih model dan daftarkan ke registry lokal (cukup sekali, tersimpan di volume)
+MLFLOW_TRACKING_URI=http://localhost:5000 python src/train.py
+# lalu daftarkan sebagai rain-risk-classifier dengan alias "staging"
+
+# 3. Jalankan seluruh sistem
+docker compose up -d --build
+```
+
+Setelah model terdaftar, seluruh sistem cukup dijalankan dengan satu perintah:
+
+```bash
+docker compose up -d --build
+```
+
+### Verifikasi
+
+```bash
+docker compose ps
+curl -s localhost:8000/health; echo
+curl -s -X POST localhost:8000/predict \
+  -H "Content-Type: application/json" -d @sample.json
+```
+
+`/health` harus menampilkan `"model_loaded": true`.
+
+### Menghentikan
+
+```bash
+docker compose down        # data tetap ada di volume
+docker compose down -v     # menghapus volume (registry ikut hilang)
+```
