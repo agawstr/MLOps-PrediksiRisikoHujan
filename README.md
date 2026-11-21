@@ -257,19 +257,19 @@ Perintah ini membangun image API dan menyalakan dua layanan dalam satu custom br
 
 - Docker dan Docker Compose v2
 - Python 3.11 dan dependensi training: `pip install -r requirements.txt`
-- Data terbaru: `dvc pull`
+- Data: `dvc pull` (data DVC tersimpan di penyimpanan milik pemilik repo, jadi perlu akses ke penyimpanan tersebut)
 
 ### Persiapan satu kali (registry masih kosong)
 
-Pada percobaan pertama registry lokal belum berisi model, jadi model dilatih dan diberi alias `staging` sekali saja.
+Pada percobaan pertama registry lokal belum berisi model, jadi model dilatih, didaftarkan, dan diberi alias `staging` sekali saja.
 
 ```bash
 # 1. Jalankan MLflow server
 docker compose up -d mlflow-server
 
-# 2. Latih model ke registry lokal
+# 2. Latih model dan daftarkan run terbaik ke registry lokal
 export MLFLOW_TRACKING_URI=http://localhost:5000
-python src/train.py
+python src/train.py --register
 
 # 3. Beri alias "staging" pada versi terbaru rain-risk-classifier
 python - <<'EOF'
