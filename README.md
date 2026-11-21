@@ -238,25 +238,30 @@ Workflow `.github/workflows/mlops-automation.yaml` berjalan otomatis pada **push
 
 ## LK-09: Orkestrasi dengan Docker Compose
 
-Sistem terdiri dari dua layanan dalam satu custom bridge network (`ml-net`):
+### Menjalankan seluruh sistem (satu perintah)
+
+```bash
+docker compose up -d --build
+```
+
+Perintah ini membangun image API dan menyalakan dua layanan dalam satu custom bridge network (`ml-net`). Syaratnya registry MLflow sudah berisi model (lihat **Persiapan satu kali** di bawah). Setelah itu data tersimpan di volume `mlflow-data`, sehingga perintah di atas cukup dijalankan kapan saja.
 
 | Layanan | Fungsi | Port |
 |---|---|---|
 | `mlflow-server` | Tracking server + Model Registry (SQLite di volume `mlflow-data`) | 5000 |
 | `api-service` | API inferensi FastAPI, memuat model `rain-risk-classifier@staging` | 8000 |
 
-`api-service` menunggu `mlflow-server` berstatus *healthy* (`depends_on` dengan `condition: service_healthy`) dan mengakses model lewat nama layanan: `http://mlflow-server:5000`. Data registry disimpan di volume `mlflow-data`, sehingga tidak hilang saat kontainer dimatikan.
+`api-service` menunggu `mlflow-server` berstatus *healthy* (`depends_on` dengan `condition: service_healthy`) dan mengakses model lewat nama layanan: `http://mlflow-server:5000`.
 
 ### Prasyarat
 
 - Docker dan Docker Compose v2
-- Python 3.11
-- Dependensi training: `pip install -r requirements.txt`
+- Python 3.11 dan dependensi training: `pip install -r requirements.txt`
 - Data terbaru: `dvc pull`
 
-### Menjalankan sistem (pertama kali)
+### Persiapan satu kali (registry masih kosong)
 
-Registry lokal masih kosong pada percobaan pertama, jadi model perlu dilatih dan didaftarkan sekali. Setelahnya data tersimpan di volume.
+Pada percobaan pertama registry lokal belum berisi model, jadi model dilatih dan diberi alias `staging` sekali saja.
 
 ```bash
 # 1. Jalankan MLflow server
@@ -277,14 +282,6 @@ print("alias staging -> versi", v.version)
 EOF
 
 # 4. Jalankan seluruh sistem
-docker compose up -d --build
-```
-
-### Menjalankan sistem (berikutnya)
-
-Setelah model terdaftar, seluruh sistem cukup dijalankan dengan satu perintah:
-
-```bash
 docker compose up -d --build
 ```
 
@@ -327,11 +324,11 @@ Hasil: `b'OK'`.
 
 ```bash
 docker compose down        # data tetap ada di volume
-docker compose down -v     # menghapus volume (registry ikut hilang)
+docker compose down -v     # menghapus volume (registry ikut hilang, perlu persiapan ulang)
 ```
 
 ### Catatan
 
 - Batas memori: `mlflow-server` 2 GB, `api-service` 1 GB. MLflow dijalankan dengan `--workers 1` agar hemat memori.
 - Log API dapat memuat satu peringatan MLflow tentang `pytest`. Paket itu tercatat sebagai dependensi lingkungan training tetapi tidak dipasang di image API. Peringatan ini tidak memengaruhi inferensi.
-- Jika API memberi `model_loaded: false`, pastikan alias `staging` sudah dibuat (langkah 3), lalu jalankan `docker compose restart api-service`.
+- Jika API memberi `model_loaded: false`, pastikan alias `staging` sudah dibuat, lalu jalankan `docker compose restart api-service`.
