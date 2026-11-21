@@ -238,30 +238,49 @@ Workflow `.github/workflows/mlops-automation.yaml` berjalan otomatis pada **push
 
 ## LK-09: Orkestrasi dengan Docker Compose
 
-Sistem terdiri dari dua layanan dalam satu network (`ml-net`):
+Sistem terdiri dari dua layanan dalam satu custom bridge network (`ml-net`):
 
 | Layanan | Fungsi | Port |
 |---|---|---|
 | `mlflow-server` | Tracking server + Model Registry (SQLite di volume `mlflow-data`) | 5000 |
 | `api-service` | API inferensi FastAPI, memuat model `rain-risk-classifier@staging` | 8000 |
 
-### Prasyarat
-- Docker dan Docker Compose v2
-- Dependensi training terpasang (`pip install -r requirements.txt`)
+`api-service` menunggu `mlflow-server` berstatus *healthy* (`depends_on` dengan `condition: service_healthy`) dan mengakses model lewat nama layanan: `http://mlflow-server:5000`. Data registry disimpan di volume `mlflow-data`, sehingga tidak hilang saat kontainer dimatikan.
 
-### Menjalankan sistem
+### Prasyarat
+
+- Docker dan Docker Compose v2
+- Python 3.11
+- Dependensi training: `pip install -r requirements.txt`
+- Data terbaru: `dvc pull`
+
+### Menjalankan sistem (pertama kali)
+
+Registry lokal masih kosong pada percobaan pertama, jadi model perlu dilatih dan didaftarkan sekali. Setelahnya data tersimpan di volume.
 
 ```bash
 # 1. Jalankan MLflow server
 docker compose up -d mlflow-server
 
-# 2. Latih model dan daftarkan ke registry lokal (cukup sekali, tersimpan di volume)
-MLFLOW_TRACKING_URI=http://localhost:5000 python src/train.py
-# lalu daftarkan sebagai rain-risk-classifier dengan alias "staging"
+# 2. Latih model ke registry lokal
+export MLFLOW_TRACKING_URI=http://localhost:5000
+python src/train.py
 
-# 3. Jalankan seluruh sistem
+# 3. Beri alias "staging" pada versi terbaru rain-risk-classifier
+python - <<'EOF'
+from mlflow.tracking import MlflowClient
+c = MlflowClient()
+v = max(c.search_model_versions("name='rain-risk-classifier'"),
+        key=lambda x: int(x.version))
+c.set_registered_model_alias("rain-risk-classifier", "staging", v.version)
+print("alias staging -> versi", v.version)
+EOF
+
+# 4. Jalankan seluruh sistem
 docker compose up -d --build
 ```
+
+### Menjalankan sistem (berikutnya)
 
 Setelah model terdaftar, seluruh sistem cukup dijalankan dengan satu perintah:
 
@@ -274,11 +293,35 @@ docker compose up -d --build
 ```bash
 docker compose ps
 curl -s localhost:8000/health; echo
-curl -s -X POST localhost:8000/predict \
-  -H "Content-Type: application/json" -d @sample.json
 ```
 
 `/health` harus menampilkan `"model_loaded": true`.
+
+Buat contoh input dari data latih, lalu uji prediksi:
+
+```bash
+MLFLOW_TRACKING_URI=http://localhost:5000 python -c "
+import json, mlflow, pandas as pd
+m = mlflow.pyfunc.load_model('models:/rain-risk-classifier@staging')
+cols = m.metadata.get_input_schema().input_names()
+df = pd.read_csv('data/processed/weather_processed.csv')
+row = df[cols].dropna().iloc[0].to_dict()
+json.dump(row, open('/tmp/sample.json', 'w'), default=float)
+"
+
+curl -s -X POST localhost:8000/predict \
+  -H "Content-Type: application/json" -d @/tmp/sample.json; echo
+```
+
+Hasil: `{"prediction":[0]}` (atau `[1]`).
+
+Uji komunikasi antar kontainer (service discovery):
+
+```bash
+docker compose exec api-service python -c "import urllib.request; print(urllib.request.urlopen('http://mlflow-server:5000/health').read())"
+```
+
+Hasil: `b'OK'`.
 
 ### Menghentikan
 
@@ -286,3 +329,9 @@ curl -s -X POST localhost:8000/predict \
 docker compose down        # data tetap ada di volume
 docker compose down -v     # menghapus volume (registry ikut hilang)
 ```
+
+### Catatan
+
+- Batas memori: `mlflow-server` 2 GB, `api-service` 1 GB. MLflow dijalankan dengan `--workers 1` agar hemat memori.
+- Log API dapat memuat satu peringatan MLflow tentang `pytest`. Paket itu tercatat sebagai dependensi lingkungan training tetapi tidak dipasang di image API. Peringatan ini tidak memengaruhi inferensi.
+- Jika API memberi `model_loaded: false`, pastikan alias `staging` sudah dibuat (langkah 3), lalu jalankan `docker compose restart api-service`.
