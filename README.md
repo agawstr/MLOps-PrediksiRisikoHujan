@@ -238,10 +238,12 @@ Workflow `.github/workflows/mlops-automation.yaml` berjalan otomatis pada **push
 
 ## LK-09: Orkestrasi dengan Docker Compose
 
+> Sejak LK-10, `api-service` ada di profile `lk09`, jadi `docker compose up -d` biasa tidak menyalakannya. Pakai `--profile lk09`. Versi LK-09 yang utuh ada di tag `lk09-final`.
+
 ### Menjalankan seluruh sistem (satu perintah)
 
 ```bash
-docker compose up -d --build
+docker compose --profile lk09 up -d --build api-service
 ```
 
 Perintah ini membangun image API dan menyalakan dua layanan dalam satu custom bridge network (`ml-net`). Syaratnya registry MLflow sudah berisi model (lihat **Persiapan satu kali** di bawah). Setelah itu data tersimpan di volume `mlflow-data`, sehingga perintah di atas cukup dijalankan kapan saja.
@@ -282,13 +284,13 @@ print("alias staging -> versi", v.version)
 EOF
 
 # 4. Jalankan seluruh sistem
-docker compose up -d --build
+docker compose --profile lk09 up -d --build api-service
 ```
 
 ### Verifikasi
 
 ```bash
-docker compose ps
+docker compose --profile lk09 ps
 curl -s localhost:8000/health; echo
 ```
 
@@ -315,7 +317,7 @@ Hasil: `{"prediction":[0]}` (atau `[1]`).
 Uji komunikasi antar kontainer (service discovery):
 
 ```bash
-docker compose exec api-service python -c "import urllib.request; print(urllib.request.urlopen('http://mlflow-server:5000/health').read())"
+docker compose --profile lk09 exec api-service python -c "import urllib.request; print(urllib.request.urlopen('http://mlflow-server:5000/health').read())"
 ```
 
 Hasil: `b'OK'`.
@@ -331,4 +333,62 @@ docker compose down -v     # menghapus volume (registry ikut hilang, perlu persi
 
 - Batas memori: `mlflow-server` 2 GB, `api-service` 1 GB. MLflow dijalankan dengan `--workers 1` agar hemat memori.
 - Log API dapat memuat satu peringatan MLflow tentang `pytest`. Paket itu tercatat sebagai dependensi lingkungan training tetapi tidak dipasang di image API. Peringatan ini tidak memengaruhi inferensi.
-- Jika API memberi `model_loaded: false`, pastikan alias `staging` sudah dibuat, lalu jalankan `docker compose restart api-service`.
+- Jika API memberi `model_loaded: false`, pastikan alias `staging` sudah dibuat, lalu jalankan `docker compose --profile lk09 restart api-service`.
+
+## LK-10: Model Serving dan Simulasi Scaling
+
+Model `rain-risk-classifier@production` dibungkus dengan `mlflow models build-docker`, dijalankan 3 replika, dan dilayani lewat nginx sebagai load balancer.
+
+| Layanan | Fungsi | Port host |
+|---|---|---|
+| mlflow-server | Tracking server + Model Registry | 5000 |
+| model-serving (3 replika) | Model dalam image `rain-risk-serving`, port 8080 internal | tidak ada |
+| nginx | Load balancer ke replika lewat nama layanan | 8080 |
+
+### Persiapan satu kali
+```bash
+docker compose up -d mlflow-server
+export MLFLOW_TRACKING_URI=http://localhost:5000
+python src/train.py --register
+python - <<'EOF'
+from mlflow import MlflowClient
+c = MlflowClient()
+n = "rain-risk-classifier"
+v = max(c.search_model_versions(f"name='{n}'"), key=lambda x: int(x.version))
+c.set_registered_model_alias(n, "production", v.version)
+print("production = v", v.version)
+EOF
+# bangun image model (sekali, ±14 menit, ±6 GB; Compose memakai pull_policy: never)
+mlflow models build-docker -m "models:/rain-risk-classifier@production" -n rain-risk-serving
+```
+
+### Menjalankan
+```bash
+docker compose up -d
+docker compose ps
+```
+Hanya nginx yang membuka port ke host. Ketiga replika hanya terjangkau lewat network `ml-net`.
+
+### Mengakses endpoint
+```bash
+curl -s localhost:8080/ping -w "\nHTTP %{http_code}\n"
+curl -s -X POST localhost:8080/invocations -H "Content-Type: application/json" \
+  -d '{"dataframe_split":{"columns":["t","hu","ws","tcc","sin_hour","cos_hour","t_lag1","hu_lag1","ws_lag1","t_rolling_mean_3h","hu_rolling_mean_3h"],"data":[[...11 nilai...]]}}'
+```
+Respons: `{"predictions": [0]}` atau `[1]`. Kolom tidak lengkap dijawab HTTP 400 (`SCHEMA_ENFORCEMENT_FAILED`).
+
+### Mengubah jumlah replika
+```bash
+docker compose up -d --scale model-serving=5
+docker compose up -d --scale model-serving=3
+```
+Atau ubah `deploy.replicas` di `docker-compose.yaml`. nginx meresolusi ulang nama layanan tiap ±5 detik, jadi replika baru ikut menerima trafik tanpa restart.
+
+### Bukti distribusi beban
+```bash
+docker compose logs nginx --no-log-prefix | grep -o 'upstream=[0-9.:]*' | sort | uniq -c
+```
+
+### Catatan
+- Replika tidak bergantung pada mlflow-server saat berjalan (model ada di dalam image).
+- Image `rain-risk-serving` tersimpan di Docker lokal, bukan di repo. Build ulang hanya kalau model atau versinya berubah.
