@@ -1,0 +1,568 @@
+{
+  "uid": "rain-risk-obs",
+  "title": "Rain Risk - Observability (LK-11)",
+  "tags": [
+    "lk11"
+  ],
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Throughput (req/s)",
+      "type": "stat",
+      "description": "Request per detik ke /invocations (rata-rata 1 menit)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rr_requests_total[1m]))",
+          "legendFormat": "req/s",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Error rate (%)",
+      "type": "stat",
+      "description": "Persen request non-200",
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(rr_requests_total{status!=\"200\"}[1m])) or vector(0)) / sum(rate(rr_requests_total[1m])) * 100",
+          "legendFormat": "error",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Drift fitur: max |d|",
+      "type": "stat",
+      "description": "d = (mean jendela - mean baseline) / std baseline. WARNING > 0,25; CRITICAL > 0,5",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.25
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "max(abs(rr_feature_drift_d))",
+          "legendFormat": "max|d|",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Drift prediksi: |rasio 1 - baseline|",
+      "type": "stat",
+      "description": "Selisih rasio prediksi kelas 1 (jendela vs baseline). WARNING > 0,10; CRITICAL > 0,15",
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.15
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "abs(rr_positive_rate_window - rr_positive_rate_baseline) and on() (rr_window_size >= 30)",
+          "legendFormat": "selisih",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Latensi inferensi p50 / p95 / p99",
+      "type": "timeseries",
+      "description": "Latensi end-to-end gateway -> nginx -> replika, dari histogram",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(rr_request_latency_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rr_request_latency_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(rr_request_latency_seconds_bucket[1m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Throughput (req/s)",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rr_requests_total[1m]))",
+          "legendFormat": "total",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Request per replika (distribusi trafik)",
+      "type": "timeseries",
+      "description": "Dari header X-Upstream nginx; tiga alamat = tiga replika",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 40
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (upstream)(rate(rr_upstream_requests_total[1m]))",
+          "legendFormat": "{{upstream}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Error rate (%)",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "(sum(rate(rr_requests_total{status!=\"200\"}[1m])) or vector(0)) / sum(rate(rr_requests_total[1m])) * 100",
+          "legendFormat": "error %",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Distribusi prediksi (per label)",
+      "type": "timeseries",
+      "description": "Laju prediksi per kelas (0 = tidak berisiko, 1 = risiko hujan)",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 40
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (label)(rate(rr_predictions_total[1m]))",
+          "legendFormat": "label {{label}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Rasio prediksi 1: jendela vs baseline",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rr_positive_rate_window and on() (rr_window_size >= 30)",
+          "legendFormat": "jendela",
+          "refId": "A"
+        },
+        {
+          "expr": "rr_positive_rate_baseline",
+          "legendFormat": "baseline",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Drift per fitur |d| (WARNING 0,25 / CRITICAL 0,5)",
+      "type": "timeseries",
+      "description": "Pergeseran mean fitur input dalam satuan std baseline (jendela 200 baris terakhir)",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.25
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "abs(rr_feature_drift_d)",
+          "legendFormat": "{{feature}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "CPU gateway (proses)",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 28,
+        "w": 6,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=\"gateway\"}[1m])",
+          "legendFormat": "gateway",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "RAM gateway (proses)",
+      "type": "timeseries",
+      "description": "",
+      "gridPos": {
+        "x": 18,
+        "y": 28,
+        "w": 6,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=\"gateway\"}",
+          "legendFormat": "gateway",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        }
+      }
+    }
+  ]
+}
