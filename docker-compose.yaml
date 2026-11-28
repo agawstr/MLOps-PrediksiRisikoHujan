@@ -113,6 +113,26 @@ services:
           memory: 1G
     restart: unless-stopped
 
+  # LK-11: gateway observability (FastAPI + prometheus_client) di depan nginx
+  gateway:
+    build: ./gateway
+    environment:
+      UPSTREAM_URL: http://nginx:80
+      BASELINE_PATH: /app/baseline.json
+    volumes:
+      - ./monitoring/baseline.json:/app/baseline.json:ro
+    depends_on:
+      - nginx
+    networks:
+      - ml-net
+    ports:
+      - "8090:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
+
 networks:
   ml-net:
     driver: bridge
